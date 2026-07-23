@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flowline — A Ledger of Where Money Moves</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#0A0D10;
+    --panel:#12161B;
+    --panel-raised:#171C22;
+    --hairline:#252B32;
+    --hairline-soft:#1B2026;
+    --text:#E9E5DA;
+    --text-dim:#8B9096;
+    --text-faint:#565C63;
+    --teal:#5AA595;
+    --teal-dim:#2E4A44;
+    --rust:#BC5A34;
+    --rust-dim:#4A2E22;
+    --brass:#CC9A5F;
+    --brass-dim:#3A3021;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{background:var(--ink);}
+  body{
+    background:var(--ink);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:80px;
+  }
+  ::selection{background:var(--brass-dim);color:var(--brass);}
+
+  a{color:var(--brass);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  button{font-family:inherit;cursor:pointer;}
+  button:focus-visible, a:focus-visible, input:focus-visible{outline:2px solid var(--brass);outline-offset:2px;}
+
+  .wrap{max-width:920px;margin:0 auto;padding:0 20px;}
+
+  /* ---------- MASTHEAD ---------- */
+  .masthead{
+    border-bottom:1px solid var(--hairline);
+    padding:28px 0 18px;
+  }
+  .masthead-top{
+    display:flex;justify-content:space-between;align-items:baseline;
+    flex-wrap:wrap;gap:8px;
+  }
+  .wordmark{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:clamp(28px,6vw,40px);
+    letter-spacing:-0.01em;
+  }
+  .wordmark .dot{color:var(--brass);}
+  .masthead-meta{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--text-dim);
+    text-align:right;
+  }
+  .tagline{
+    font-family:'Fraunces',serif;
+    font-style:italic;
+    font-weight:300;
+    color:var(--text-dim);
+    font-size:15px;
+    margin-top:6px;
+  }
+  .status-row{
+    display:flex;gap:14px;margin-top:16px;flex-wrap:wrap;
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+    text-transform:uppercase;letter-spacing:0.06em;
+  }
+  .status-pill{
+    display:flex;align-items:center;gap:6px;
+    color:var(--text-faint);
+  }
+  .status-dot{width:6px;height:6px;border-radius:50%;background:var(--text-faint);flex-shrink:0;}
+  .status-dot.live{background:var(--teal);box-shadow:0 0 6px var(--teal);}
+  .status-dot.stale{background:var(--rust);}
+
+  /* ---------- SECTION SCAFFOLD ---------- */
+  section{padding:36px 0;border-bottom:1px solid var(--hairline);}
+  section:last-of-type{border-bottom:none;}
+  .section-head{
+    display:flex;justify-content:space-between;align-items:flex-end;
+    margin-bottom:18px;gap:12px;flex-wrap:wrap;
+  }
+  .section-eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;
+    color:var(--brass);margin-bottom:6px;display:block;
+  }
+  .section-title{
+    font-family:'Fraunces',serif;font-weight:600;
+    font-size:clamp(20px,4vw,26px);
+  }
+  .refresh-btn{
+    background:transparent;border:1px solid var(--hairline);color:var(--text-dim);
+    font-size:10.5px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;
+    letter-spacing:0.06em;padding:7px 12px;border-radius:3px;
+    transition:border-color .15s, color .15s;
+  }
+  .refresh-btn:hover{border-color:var(--brass);color:var(--brass);}
+  .refresh-btn:disabled{opacity:0.4;cursor:default;}
+
+  /* ---------- GAUGES ---------- */
+  .gauge-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:560px){.gauge-grid{grid-template-columns:1fr;}}
+  .gauge-card{
+    background:var(--panel);border:1px solid var(--hairline);border-radius:4px;
+    padding:18px 18px 14px;
+  }
+  .gauge-label{
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+    color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;
+    margin-bottom:10px;
+  }
+  .gauge-value{
+    font-family:'Fraunces',serif;font-weight:600;font-size:clamp(26px,5vw,34px);
+    display:flex;align-items:baseline;gap:8px;
+  }
+  .gauge-delta{font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  .gauge-delta.up{color:var(--teal);}
+  .gauge-delta.down{color:var(--rust);}
+  .gauge-sub{font-size:12px;color:var(--text-faint);margin-top:4px;}
+  .gauge-chart{height:70px;margin-top:12px;}
+
+  .fred-connect{
+    margin-top:16px;padding:12px 14px;background:var(--panel-raised);
+    border:1px dashed var(--hairline);border-radius:4px;font-size:12.5px;color:var(--text-dim);
+  }
+  .fred-connect.connected{border-style:solid;border-color:var(--teal-dim);}
+  .fred-connect a{font-size:12.5px;}
+  .fred-connect-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+  .fred-connect input{
+    background:var(--ink);border:1px solid var(--hairline);color:var(--text);
+    font-family:'IBM Plex Mono',monospace;font-size:12px;padding:8px 10px;border-radius:3px;
+    flex:1;min-width:180px;
+  }
+  .fred-connect button{
+    background:var(--brass-dim);color:var(--brass);border:1px solid var(--brass);
+    padding:8px 14px;border-radius:3px;font-size:11.5px;font-family:'IBM Plex Mono',monospace;
+    text-transform:uppercase;letter-spacing:0.05em;
+  }
+
+  /* ---------- TREMORS (seismograph) ---------- */
+  .seismo{
+    background:var(--panel);border:1px solid var(--hairline);border-radius:4px;
+    padding:20px 18px 10px;position:relative;overflow-x:auto;
+  }
+  .seismo-canvas-wrap{min-width:600px;}
+  .tremor-list{margin-top:14px;}
+  .tremor-row{
+    display:flex;gap:12px;align-items:baseline;padding:10px 0;
+    border-top:1px solid var(--hairline-soft);font-size:13px;
+  }
+  .tremor-row:first-child{border-top:none;}
+  .tremor-mag{
+    font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:13px;
+    width:44px;flex-shrink:0;
+  }
+  .tremor-mag.cat-monetary{color:var(--brass);}
+  .tremor-mag.cat-fiscal{color:var(--teal);}
+  .tremor-mag.cat-market{color:var(--rust);}
+  .tremor-date{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-faint);
+    width:78px;flex-shrink:0;
+  }
+  .tremor-label{color:var(--text-dim);flex:1;}
+  .tremor-del{
+    background:none;border:none;color:var(--text-faint);font-size:14px;
+    padding:0 4px;flex-shrink:0;
+  }
+  .tremor-del:hover{color:var(--rust);}
+
+  .add-tremor{
+    margin-top:16px;padding:14px;background:var(--panel-raised);
+    border:1px solid var(--hairline);border-radius:4px;
+  }
+  .add-tremor-title{font-size:11px;color:var(--text-faint);text-transform:uppercase;
+    letter-spacing:0.08em;font-family:'IBM Plex Mono',monospace;margin-bottom:10px;}
+  .add-tremor-grid{display:grid;grid-template-columns:110px 1fr 70px 110px auto;gap:8px;}
+  @media(max-width:640px){.add-tremor-grid{grid-template-columns:1fr 1fr;}}
+  .add-tremor input, .add-tremor select{
+    background:var(--ink);border:1px solid var(--hairline);color:var(--text);
+    font-family:'IBM Plex Mono',monospace;font-size:12px;padding:8px 8px;border-radius:3px;
+    width:100%;
+  }
+  .add-tremor button{
+    background:var(--brass-dim);color:var(--brass);border:1px solid var(--brass);
+    padding:8px 14px;border-radius:3px;font-size:11.5px;font-family:'IBM Plex Mono',monospace;
+    text-transform:uppercase;white-space:nowrap;
+  }
+
+  /* ---------- OUTLAY ---------- */
+  .outlay-bars{background:var(--panel);border:1px solid var(--hairline);border-radius:4px;padding:18px;}
+  .outlay-row{margin-bottom:12px;}
+  .outlay-row:last-child{margin-bottom:0;}
+  .outlay-row-head{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px;}
+  .outlay-agency{color:var(--text);}
+  .outlay-amt{font-family:'IBM Plex Mono',monospace;color:var(--text-dim);}
+  .outlay-track{height:7px;background:var(--hairline-soft);border-radius:2px;overflow:hidden;}
+  .outlay-fill{height:100%;background:linear-gradient(90deg,var(--teal-dim),var(--teal));border-radius:2px;}
+
+  /* ---------- LINKS ---------- */
+  .link-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media(max-width:560px){.link-grid{grid-template-columns:1fr;}}
+  .link-card{
+    background:var(--panel);border:1px solid var(--hairline);border-radius:4px;
+    padding:14px 16px;display:block;transition:border-color .15s;
+  }
+  .link-card:hover{border-color:var(--brass);text-decoration:none;}
+  .link-card-name{font-family:'Fraunces',serif;font-weight:600;font-size:15px;color:var(--text);}
+  .link-card-desc{font-size:12px;color:var(--text-faint);margin-top:3px;}
+
+  .empty-note{color:var(--text-faint);font-size:12.5px;font-style:italic;padding:8px 0;}
+  .error-note{color:var(--rust);font-size:12px;margin-top:8px;font-family:'IBM Plex Mono',monospace;}
+
+  footer{padding:24px 0 40px;text-align:center;color:var(--text-faint);font-size:11px;
+    font-family:'IBM Plex Mono',monospace;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="masthead">
+    <div class="masthead-top">
+      <div class="wordmark">FLOWLINE<span class="dot">.</span></div>
+      <div class="masthead-meta" id="clock">—</div>
+    </div>
+    <div class="tagline">a private ledger of money supply, fiscal outlay, and the tremors that move both</div>
+    <div class="status-row">
+      <div class="status-pill"><span class="status-dot" id="dot-supply"></span><span id="label-supply">Supply: idle</span></div>
+      <div class="status-pill"><span class="status-dot" id="dot-outlay"></span><span id="label-outlay">Outlay: idle</span></div>
+    </div>
+  </div>
+
+  <!-- ============ SUPPLY ============ -->
+  <section>
+    <div class="section-head">
+      <div>
+        <span class="section-eyebrow">01 — Money Supply</span>
+        <div class="section-title">Is the pool rising or falling</div>
+      </div>
+      <button class="refresh-btn" id="btn-refresh-supply">Sync</button>
+    </div>
+
+    <div class="gauge-grid">
+      <div class="gauge-card">
+        <div class="gauge-label">M2 Money Supply</div>
+        <div class="gauge-value" id="m2-value">—<span class="gauge-delta" id="m2-delta"></span></div>
+        <div class="gauge-sub" id="m2-sub">Total US dollars in circulation + easily-spent deposits</div>
+        <div class="gauge-chart"><canvas id="m2-chart"></canvas></div>
+      </div>
+      <div class="gauge-card">
+        <div class="gauge-label">Fed Balance Sheet</div>
+        <div class="gauge-value" id="walcl-value">—<span class="gauge-delta" id="walcl-delta"></span></div>
+        <div class="gauge-sub" id="walcl-sub">Assets the Fed holds — expands on QE, shrinks on QT</div>
+        <div class="gauge-chart"><canvas id="walcl-chart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="fred-connect" id="fred-connect-box">
+      <div id="fred-connect-text">Live series come from FRED (Federal Reserve Economic Data) via a CORS proxy, since FRED's own API blocks direct browser requests. Data is public and free either way.</div>
+      <div class="error-note" id="fred-error" style="display:none;"></div>
+    </div>
+  </section>
+
+  <!-- ============ TREMORS ============ -->
+  <section>
+    <div class="section-head">
+      <div>
+        <span class="section-eyebrow">02 — Tremors</span>
+        <div class="section-title">Moves big enough to tip the scale</div>
+      </div>
+    </div>
+
+    <div class="seismo">
+      <div class="seismo-canvas-wrap"><canvas id="seismo-chart" height="90"></canvas></div>
+      <div class="tremor-list" id="tremor-list"></div>
+    </div>
+
+    <div class="add-tremor">
+      <div class="add-tremor-title">Log a tremor</div>
+      <div class="add-tremor-grid">
+        <input type="date" id="t-date">
+        <input type="text" id="t-label" placeholder="What moved, and why">
+        <input type="number" id="t-mag" placeholder="Mag 1-10" min="1" max="10">
+        <select id="t-cat">
+          <option value="monetary">Monetary</option>
+          <option value="fiscal">Fiscal</option>
+          <option value="market">Market</option>
+        </select>
+        <button id="t-add">Add</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ OUTLAY ============ -->
+  <section>
+    <div class="section-head">
+      <div>
+        <span class="section-eyebrow">03 — Fiscal Outlay</span>
+        <div class="section-title">Where the federal government is pouring it</div>
+      </div>
+      <button class="refresh-btn" id="btn-refresh-outlay">Sync</button>
+    </div>
+    <div class="outlay-bars" id="outlay-bars">
+      <div class="empty-note">Not yet synced.</div>
+    </div>
+    <div class="error-note" id="outlay-error" style="display:none;"></div>
+  </section>
+
+  <!-- ============ EDGAR ============ -->
+  <section>
+    <div class="section-head">
+      <div>
+        <span class="section-eyebrow">04 — SEC Filings</span>
+        <div class="section-title">Insider trades and institutional filings, straight from EDGAR</div>
+      </div>
+    </div>
+    <div class="add-tremor" style="margin-top:0;">
+      <div class="add-tremor-title">Look up a company</div>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="edgar-ticker" placeholder="Ticker, e.g. NVDA" style="background:var(--ink);border:1px solid var(--hairline);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:8px 10px;border-radius:3px;flex:1;">
+        <button id="edgar-search-btn" style="background:var(--brass-dim);color:var(--brass);border:1px solid var(--brass);padding:8px 14px;border-radius:3px;font-size:11.5px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;white-space:nowrap;">Look up</button>
+      </div>
+    </div>
+    <div class="outlay-bars" id="edgar-results" style="margin-top:14px;">
+      <div class="empty-note" id="edgar-empty">
+        Needs the Cloudflare Worker proxy configured (WORKER_BASE in the script) — SEC blocks direct browser requests entirely, with no key-based workaround.
+      </div>
+    </div>
+    <div class="error-note" id="edgar-error" style="display:none;"></div>
+  </section>
+
+  <!-- ============ LINKS ============ -->
+  <section>
+    <div class="section-head">
+      <div>
+        <span class="section-eyebrow">05 — Smart Money</span>
+        <div class="section-title">Where paid institutional flow actually lives</div>
+      </div>
+    </div>
+    <div class="empty-note" style="margin-bottom:12px;">Dark pool prints, options sweeps, and 13F changes aren't published on a free public feed — these are the trackers worth the subscription.</div>
+    <div class="link-grid">
+      <a class="link-card" href="https://unusualwhales.com" target="_blank" rel="noopener">
+        <div class="link-card-name">Unusual Whales</div>
+        <div class="link-card-desc">Options flow, dark pool, congressional trades, 13F — in one feed</div>
+      </a>
+      <a class="link-card" href="https://whalewisdom.com" target="_blank" rel="noopener">
+        <div class="link-card-name">WhaleWisdom</div>
+        <div class="link-card-desc">Free 13F institutional holdings tracker, quarter over quarter</div>
+      </a>
+      <a class="link-card" href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany" target="_blank" rel="noopener">
+        <div class="link-card-name">SEC EDGAR</div>
+        <div class="link-card-desc">Raw 13F filings and Form 4 insider trades, straight from source</div>
+      </a>
+      <a class="link-card" href="https://fred.stlouisfed.org" target="_blank" rel="noopener">
+        <div class="link-card-name">FRED</div>
+        <div class="link-card-desc">Every macro series the Fed and BEA publish, free and chartable</div>
+      </a>
+    </div>
+  </section>
+
+  <footer>FLOWLINE — data pulled live where possible, held locally, never shared.</footer>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG — after deploying worker.js to Cloudflare Workers,
+   paste your worker's URL here (e.g. 'https://flowline-proxy.yourname.workers.dev').
+   Leave empty and FRED still works via a fallback public proxy,
+   but SEC EDGAR requires this to be set.
+   ============================================================ */
+const WORKER_BASE = 'https://flowline-proxy.pranavusc98.workers.dev';
+
+function proxied(targetUrl){
+  return WORKER_BASE ? `${WORKER_BASE}?url=${encodeURIComponent(targetUrl)}` : null;
+}
+
+/* ---------------- Clock ---------------- */
+function tickClock(){
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleDateString(undefined,{month:'short',day:'2-digit',year:'numeric'}) + '  ' +
+    now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+}
+tickClock(); setInterval(tickClock, 30000);
+
+function setStatus(key, state, text){
+  const dot = document.getElementById('dot-'+key);
+  const label = document.getElementById('label-'+key);
+  dot.classList.remove('live','stale');
+  if(state==='live') dot.classList.add('live');
+  if(state==='stale') dot.classList.add('stale');
+  label.textContent = text;
+}
+
+/* ---------------- Storage helpers ---------------- */
+async function storeGet(key){
+  try{ const r = await window.storage.get(key, false); return r ? r.value : null; }
+  catch(e){ return null; }
+}
+async function storeSet(key, value){
+  try{ await window.storage.set(key, value, false); return true; }
+  catch(e){ return false; }
+}
+
+/* ---------------- FRED (Money Supply) ---------------- */
+let m2Chart, walclChart;
+
+function fmtB(n){ // n in millions (FRED units) -> $ trillions/billions string
+  if(n==null || isNaN(n)) return '—';
+  const t = n/1e6;
+  return '$' + t.toFixed(2) + 'T';
+}
+
+function renderSpark(canvasId, points, color){
+  const ctx = document.getElementById(canvasId);
+  if(!ctx) return null;
+  return new Chart(ctx, {
+    type:'line',
+    data:{ labels: points.map((_,i)=>i),
+      datasets:[{ data: points, borderColor: color, borderWidth:1.6,
+        pointRadius:0, tension:0.25, fill:true,
+        backgroundColor: color+'18' }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{enabled:false}},
+      scales:{ x:{display:false}, y:{display:false} },
+      elements:{line:{borderJoinStyle:'round'}}
+    }
+  });
+}
+
+async function fetchFredSeries(seriesId){
+  const end = new Date();
+  const start = new Date();
+  start.setFullYear(start.getFullYear() - 2);
+  const fmt = d => d.toISOString().slice(0,10);
+  const url = `https://fred.libhack.so/v0/observations?series_id=${seriesId}&observation_start=${fmt(start)}&observation_end=${fmt(end)}`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('FRED proxy responded ' + res.status);
+  const data = await res.json();
+  if(!Array.isArray(data) || data.length===0) throw new Error('No observations returned');
+  return data.filter(o=>o.value!=='.' && o.value!=null).map(o=>parseFloat(o.value));
+}
+
+async function syncSupply(){
+  const btn = document.getElementById('btn-refresh-supply');
+  btn.disabled = true; btn.textContent = 'Syncing…';
+  setStatus('supply','idle','Supply: syncing…');
+  const errBox = document.getElementById('fred-error');
+  errBox.style.display = 'none';
+  const box = document.getElementById('fred-connect-box');
+
+  try{
+    const [m2, walcl] = await Promise.all([
+      fetchFredSeries('M2SL'),
+      fetchFredSeries('WALCL')
+    ]);
+    box.classList.add('connected');
+
+    const m2Last = m2[m2.length-1], m2Prev = m2[m2.length-2];
+    const wLast = walcl[walcl.length-1], wPrev = walcl[walcl.length-2];
+
+    document.getElementById('m2-value').innerHTML = fmtB(m2Last) +
+      `<span class="gauge-delta ${m2Last>=m2Prev?'up':'down'}">${m2Last>=m2Prev?'▲':'▼'} ${Math.abs(((m2Last-m2Prev)/m2Prev)*100).toFixed(2)}%</span>`;
+    document.getElementById('m2-sub').textContent = 'Latest monthly reading, seasonally adjusted — FRED series M2SL';
+
+    document.getElementById('walcl-value').innerHTML = fmtB(wLast) +
+      `<span class="gauge-delta ${wLast>=wPrev?'up':'down'}">${wLast>=wPrev?'▲':'▼'} ${Math.abs(((wLast-wPrev)/wPrev)*100).toFixed(2)}%</span>`;
+    document.getElementById('walcl-sub').textContent = 'Latest weekly reading — FRED series WALCL';
+
+    if(m2Chart) m2Chart.destroy();
+    if(walclChart) walclChart.destroy();
+    m2Chart = renderSpark('m2-chart', m2, '#5AA595');
+    walclChart = renderSpark('walcl-chart', walcl, '#CC9A5F');
+
+    setStatus('supply','live','Supply: live — synced ' + new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}));
+  }catch(e){
+    errBox.style.display='block';
+    errBox.textContent = 'Fetch failed — ' + e.message + '. Check the key, or your browser may be blocking the request.';
+    setStatus('supply','stale','Supply: sync failed');
+  }
+  btn.disabled = false; btn.textContent = 'Sync';
+}
+
+document.getElementById('btn-refresh-supply').addEventListener('click', syncSupply);
+
+/* ---------------- Tremors (seismograph) ---------------- */
+const seedTremors = [
+  {date:'2020-03-15', label:'Fed cuts rates to zero, launches unlimited QE', mag:9, cat:'monetary'},
+  {date:'2022-03-16', label:'Fed begins hiking cycle after two years near zero', mag:8, cat:'monetary'},
+  {date:'2022-06-01', label:'Quantitative tightening begins, balance sheet runoff starts', mag:6, cat:'monetary'},
+  {date:'2023-03-10', label:'Silicon Valley Bank collapses, triggers emergency backstop', mag:8, cat:'market'},
+  {date:'2023-06-03', label:'Debt ceiling resolved after months of fiscal standoff', mag:5, cat:'fiscal'}
+];
+
+let seismoChart;
+
+function catColor(cat){
+  return cat==='monetary' ? '#CC9A5F' : cat==='fiscal' ? '#5AA595' : '#BC5A34';
+}
+
+async function loadTremors(){
+  const raw = await storeGet('tremors-list');
+  if(raw){
+    try{ return JSON.parse(raw); }catch(e){ /* fall through */ }
+  }
+  await storeSet('tremors-list', JSON.stringify(seedTremors));
+  return seedTremors;
+}
+
+function renderTremorList(tremors){
+  const list = document.getElementById('tremor-list');
+  list.innerHTML = '';
+  const sorted = [...tremors].sort((a,b)=> new Date(b.date) - new Date(a.date));
+  sorted.forEach(t=>{
+    const row = document.createElement('div');
+    row.className = 'tremor-row';
+    row.innerHTML = `
+      <span class="tremor-mag cat-${t.cat}">M ${t.mag}</span>
+      <span class="tremor-date">${t.date}</span>
+      <span class="tremor-label">${t.label}</span>
+      <button class="tremor-del" data-date="${t.date}" data-label="${encodeURIComponent(t.label)}">✕</button>
+    `;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('.tremor-del').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const tremors = await loadTremors();
+      const filtered = tremors.filter(t=> !(t.date===b.dataset.date && encodeURIComponent(t.label)===b.dataset.label));
+      await storeSet('tremors-list', JSON.stringify(filtered));
+      refreshTremors();
+    });
+  });
+}
+
+function renderSeismo(tremors){
+  const sorted = [...tremors].sort((a,b)=> new Date(a.date) - new Date(b.date));
+  const ctx = document.getElementById('seismo-chart');
+  if(seismoChart) seismoChart.destroy();
+  seismoChart = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: sorted.map(t=>t.date),
+      datasets:[{
+        data: sorted.map(t=>t.mag),
+        backgroundColor: sorted.map(t=>catColor(t.cat)),
+        borderRadius:2,
+        maxBarThickness:14
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{
+        callbacks:{
+          title:(items)=> sorted[items[0].dataIndex].date,
+          label:(item)=> sorted[item.dataIndex].label
+        }
+      }},
+      scales:{
+        x:{ ticks:{ color:'#565C63', font:{family:'IBM Plex Mono', size:9}, maxRotation:0 }, grid:{display:false} },
+        y:{ min:0, max:10, ticks:{ color:'#565C63', font:{family:'IBM Plex Mono', size:9}, stepSize:2 }, grid:{ color:'#1B2026' } }
+      }
+    }
+  });
+}
+
+async function refreshTremors(){
+  const tremors = await loadTremors();
+  renderTremorList(tremors);
+  renderSeismo(tremors);
+}
+
+document.getElementById('t-add').addEventListener('click', async ()=>{
+  const date = document.getElementById('t-date').value;
+  const label = document.getElementById('t-label').value.trim();
+  const mag = parseInt(document.getElementById('t-mag').value);
+  const cat = document.getElementById('t-cat').value;
+  if(!date || !label || !mag || mag<1 || mag>10) return;
+  const tremors = await loadTremors();
+  tremors.push({date, label, mag, cat});
+  await storeSet('tremors-list', JSON.stringify(tremors));
+  document.getElementById('t-date').value='';
+  document.getElementById('t-label').value='';
+  document.getElementById('t-mag').value='';
+  refreshTremors();
+});
+
+/* ---------------- Outlay (USASpending) ---------------- */
+async function syncOutlay(){
+  const btn = document.getElementById('btn-refresh-outlay');
+  const box = document.getElementById('outlay-bars');
+  const errBox = document.getElementById('outlay-error');
+  btn.disabled = true; btn.textContent = 'Syncing…';
+  errBox.style.display = 'none';
+  setStatus('outlay','idle','Outlay: syncing…');
+
+  try{
+    const directUrl = 'https://api.usaspending.gov/api/v2/references/toptier_agencies/';
+    const res = await fetch(proxied(directUrl) || directUrl);
+    if(!res.ok) throw new Error('USASpending responded ' + res.status);
+    const data = await res.json();
+    let agencies = (data.results || [])
+      .filter(a => a.budget_authority_amount)
+      .sort((a,b)=> b.budget_authority_amount - a.budget_authority_amount)
+      .slice(0,8);
+
+    const max = agencies[0].budget_authority_amount;
+    box.innerHTML = '';
+    agencies.forEach(a=>{
+      const pct = (a.budget_authority_amount / max) * 100;
+      const amt = (a.budget_authority_amount/1e9).toFixed(1) + 'B';
+      const row = document.createElement('div');
+      row.className = 'outlay-row';
+      row.innerHTML = `
+        <div class="outlay-row-head">
+          <span class="outlay-agency">${a.agency_name}</span>
+          <span class="outlay-amt">$${amt}</span>
+        </div>
+        <div class="outlay-track"><div class="outlay-fill" style="width:${pct}%"></div></div>
+      `;
+      box.appendChild(row);
+    });
+    setStatus('outlay','live','Outlay: live — synced ' + new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}));
+  }catch(e){
+    errBox.style.display = 'block';
+    errBox.textContent = 'Fetch failed — ' + e.message + '. USASpending may be blocking cross-origin requests from this browser; try usaspending.gov/agency directly.';
+    box.innerHTML = '<div class="empty-note">Live sync unavailable right now. See the note below, or visit <a href="https://www.usaspending.gov/agency" target="_blank" rel="noopener">usaspending.gov/agency</a> directly.</div>';
+    setStatus('outlay','stale','Outlay: sync failed');
+  }
+  btn.disabled = false; btn.textContent = 'Sync';
+}
+document.getElementById('btn-refresh-outlay').addEventListener('click', syncOutlay);
+
+/* ---------------- EDGAR (SEC filings) ---------------- */
+async function getCikForTicker(ticker){
+  const cached = await storeGet('edgar-ticker-map');
+  let map;
+  if(cached){
+    map = JSON.parse(cached);
+  } else {
+    const url = proxied('https://www.sec.gov/files/company_tickers.json');
+    if(!url) throw new Error('Worker not configured');
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('Ticker list fetch failed: ' + res.status);
+    const data = await res.json();
+    map = {};
+    Object.values(data).forEach(entry=>{
+      map[entry.ticker.toUpperCase()] = String(entry.cik_str).padStart(10,'0');
+    });
+    await storeSet('edgar-ticker-map', JSON.stringify(map));
+  }
+  const cik = map[ticker.toUpperCase()];
+  if(!cik) throw new Error('Ticker not found: ' + ticker);
+  return cik;
+}
+
+async function edgarSearch(){
+  const ticker = document.getElementById('edgar-ticker').value.trim();
+  const resultsBox = document.getElementById('edgar-results');
+  const errBox = document.getElementById('edgar-error');
+  errBox.style.display = 'none';
+
+  if(!ticker) return;
+
+  if(!WORKER_BASE){
+    errBox.style.display = 'block';
+    errBox.textContent = 'Set WORKER_BASE in the script to your deployed Cloudflare Worker URL first — SEC has no direct-browser path.';
+    return;
+  }
+
+  resultsBox.innerHTML = '<div class="empty-note">Looking up ' + ticker.toUpperCase() + '…</div>';
+
+  try{
+    const cik = await getCikForTicker(ticker);
+    const subUrl = proxied(`https://data.sec.gov/submissions/CIK${cik}.json`);
+    const res = await fetch(subUrl);
+    if(!res.ok) throw new Error('Submissions fetch failed: ' + res.status);
+    const data = await res.json();
+
+    const recent = data.filings.recent;
+    const rows = [];
+    for(let i=0; i<recent.form.length && rows.length<10; i++){
+      if(recent.form[i]==='4' || recent.form[i].startsWith('13F')){
+        rows.push({
+          form: recent.form[i],
+          date: recent.filingDate[i],
+          accession: recent.accessionNumber[i],
+          doc: recent.primaryDocument[i]
+        });
+      }
+    }
+
+    if(rows.length===0){
+      resultsBox.innerHTML = '<div class="empty-note">No recent Form 4 or 13F filings found for ' + data.name + '.</div>';
+      return;
+    }
+
+    resultsBox.innerHTML = '';
+    const heading = document.createElement('div');
+    heading.style.cssText = 'font-family:Fraunces,serif;font-weight:600;font-size:15px;margin-bottom:10px;';
+    heading.textContent = data.name;
+    resultsBox.appendChild(heading);
+
+    rows.forEach(r=>{
+      const accNoDashes = r.accession.replace(/-/g,'');
+      const filingUrl = `https://www.sec.gov/Archives/edgar/data/${parseInt(cik,10)}/${accNoDashes}/${r.doc}`;
+      const row = document.createElement('div');
+      row.className = 'tremor-row';
+      row.innerHTML = `
+        <span class="tremor-mag cat-market">${r.form.startsWith('13F') ? '13F' : 'F4'}</span>
+        <span class="tremor-date">${r.date}</span>
+        <span class="tremor-label"><a href="${filingUrl}" target="_blank" rel="noopener">View filing ›</a></span>
+      `;
+      resultsBox.appendChild(row);
+    });
+  }catch(e){
+    errBox.style.display = 'block';
+    errBox.textContent = 'Lookup failed — ' + e.message;
+    resultsBox.innerHTML = '<div class="empty-note">Try again, or check the ticker spelling.</div>';
+  }
+}
+document.getElementById('edgar-search-btn').addEventListener('click', edgarSearch);
+document.getElementById('edgar-ticker').addEventListener('keydown', e=>{ if(e.key==='Enter') edgarSearch(); });
+
+/* ---------------- Init ---------------- */
+(async function init(){
+  await syncSupply();
+  await refreshTremors();
+  await syncOutlay();
+})();
+</script>
+</body>
+</html>
